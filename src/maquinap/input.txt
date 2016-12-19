@@ -1,0 +1,30 @@
+	 
+	 programa
+	 func integer asdlf < integer fkdfj >
+	 [ 
+	 integer s ;
+	 ]
+	 
+	 func integer ddor < integer f, integer g, integer l >
+	 [
+	 	integer m ;
+	 
+	 
+	 ]
+	 begin
+	 [
+		 integer x ;
+		 integer y ;
+		 integer z ;
+		 x = 4 ;
+		 y = 9 ;
+		 z = x + y ;
+	 ]
+	 endprograma
+	 
+	
+	 
+	 
+	 
+
+

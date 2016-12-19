@@ -1,0 +1,294 @@
+
+package semantica;
+
+import java_cup.runtime.*;
+import lexico.JLex.*;
+import errores.GestionErroresAnalisis;
+import arbol.*;
+import tipos.*;
+import java.util.ArrayList;
+
+
+scan with {: return getScanner().next_token(); :};
+
+parser code {: 
+	protected AnalizadorLexico alex;
+	private GestionErroresAnalisis errores;
+	public void syntax_error(Symbol unidadLexica) {
+		errores.errorSintactico((UnidadLexica)unidadLexica);
+	}
+:};
+
+init with {: 
+   alex = (AnalizadorLexico)getScanner();
+   errores = new GestionErroresAnalisis();
+   alex.fijaGestionErrores(errores);
+:};
+
+terminal     PROGRAMA, ENDPROGRAMA, IGUAL, INTEGER, BOOLEAN,
+             PUNTOCOMA, OPERADORSUMA, OPERADORRESTA, OPERADORMULTIPLICACION, OPERADORDIVISION,
+			 OPERADOROR, OPERADORAND,
+			 MAYOR, MENOR, RETURN, DISTINTO,
+			 SWITCH,CASE, DEFAULT, IGUALLOGICO,
+             BLOQUEAPERTURA, BLOQUECIERRE, BEGIN, 
+             CORCHETEAPERTURA, CORCHETECIERRE,
+             FUNC, ANGULOAPERTURA, ANGULOCIERRE, COMA,
+             PARENTESISAPERTURA, PARENTESISCIERRE, MIENTRAS, SI, SINO;
+             
+terminal String ID, ENTERO, BOOLEANO;
+
+non terminal Programa S;
+non terminal Bloque Bloque;
+non terminal ArrayList<Sentencia> Sentencias;
+non terminal Expresion TipoPrimitivo;
+non terminal Declaracion DecVariable;
+non terminal Asignacion Asignacion;
+non terminal Variable Variable;
+non terminal Tipo Tipo;
+non terminal Expresion Expresion, Expresion1, Expresion2, Expresion3, Expresion4;
+non terminal Tipo TipoBasico;
+non terminal String Identificador;
+non terminal Sentencia Sentencia;
+non terminal ArrayList<Funcion> DecFunciones;
+non terminal Funcion Funcion;
+non terminal Declaraciones Declaraciones;
+non terminal ArrayList<Declaracion> ListaDecVariable;
+non terminal Declaracion DeclaracionArgumento;
+non terminal Llamada LlamadaFuncion;
+non terminal ArrayList<Expresion> ListaParametros;
+non terminal While While;
+non terminal IfElse IfElse;
+non terminal Declaracion DeclaracionArray;
+non terminal Array Array;
+non terminal Entero Entero;
+non terminal Booleano Booleano;
+non terminal Return Return;
+non terminal Switch Case;
+non terminal ArrayList<CaseBlock> SecuenciaCase;
+non terminal Default DefaultOpt;
+
+S ::= PROGRAMA
+	  DecFunciones:dec
+	  BEGIN
+		Bloque:b
+	ENDPROGRAMA 
+	{: RESULT = new Programa(dec, b); :};
+
+	
+DecFunciones ::= Funcion:f DecFunciones:dec {: dec.add(0, f); RESULT = dec; :}
+				| Funcion:f {: RESULT = new ArrayList<Funcion>(); RESULT.add(f); :};
+				
+Funcion ::= FUNC Tipo:t Identificador:id Declaraciones:decs Bloque:b
+				{: 
+					RESULT = new Funcion(id, decs, t, b); 
+					RESULT.setFila(parser.alex.fila());
+				:};
+
+Declaraciones ::= ANGULOAPERTURA ListaDecVariable:list ANGULOCIERRE
+				{: RESULT = new Declaraciones(list); :};
+			
+ListaDecVariable ::=  DeclaracionArgumento:dec COMA ListaDecVariable:list
+					{: list.add(0, dec); RESULT = list; :}
+				| DeclaracionArgumento:dec
+				 {:RESULT = new ArrayList<Declaracion>(); RESULT.add(dec); :};
+				 	
+DeclaracionArgumento ::= Tipo:t Identificador:id
+				{: 	
+					RESULT = new Declaracion( id, t); 
+					RESULT.setFila(parser.alex.fila());
+				:};
+				
+Bloque ::= BLOQUEAPERTURA Sentencias:ss BLOQUECIERRE
+				{: 
+					RESULT = new Bloque(ss); 
+					RESULT.setFila(parser.alex.fila());
+				:};
+			
+//  Con add(int k, Elemento), colocamos el elemento en la posición k-ésima.
+// Por tanto, añadimos una  sentencia al principio con add(0, Elemento);
+// Con add(Elemento) lo colocaríamos al final y al ser recursión final
+// nos cambiaría el orden del bloque.
+
+Sentencias ::= Sentencia:s Sentencias:ss
+				 {: 
+					ss.add(0, s); RESULT = ss; 
+					s.setFila(parser.alex.fila());
+				:}				 
+			 | Sentencia:s 
+	 		{: 
+				RESULT = new ArrayList<Sentencia>(); s.setFila(parser.alex.fila()); RESULT.add(s); 
+				
+			:};
+	 					
+				
+DecVariable ::= Tipo:t Identificador:id PUNTOCOMA
+				{: 
+						RESULT = new Declaracion( id, t); 
+						RESULT.setFila(parser.alex.fila());
+				:};
+
+Identificador ::= ID:id {: RESULT = id; :};
+
+Tipo ::= TipoBasico:tipo 
+			{: RESULT = tipo; :};
+
+TipoBasico ::= INTEGER {: RESULT = TipoBasico.INT; :} 
+			| BOOLEAN {: RESULT = TipoBasico.BOOL; :} ;
+				
+Asignacion ::= Variable:v IGUAL Expresion:exp PUNTOCOMA 
+				{: 	
+					RESULT = new Asignacion( v, exp); 
+					RESULT.setFila(parser.alex.fila());
+				:};
+				
+Variable ::= ID:id {: 
+						RESULT = new Identificador(id); 
+						RESULT.setFila(parser.alex.fila());
+					:};
+
+Sentencia ::= Asignacion:as {: RESULT = as; :} | DecVariable:dec  {: RESULT = dec; :}
+				|	LlamadaFuncion:llamada {: RESULT = llamada; :}
+				| While:w {: RESULT = w; :} 
+				| IfElse:ifelse {: RESULT = ifelse; :}
+				| DeclaracionArray:dec  {: RESULT = dec; :} 
+				| Return:r {: RESULT = r; :}
+				| Case:c {: RESULT = c;
+				:};
+				
+/////////////////Llamada a una funcion//// (O un procedimiento)
+
+LlamadaFuncion ::= Identificador:id ANGULOAPERTURA ListaParametros:list ANGULOCIERRE PUNTOCOMA
+				{: 
+						RESULT = new Llamada(id, list); 
+						RESULT.setFila(parser.alex.fila());
+				:}
+				| Variable:var IGUAL Identificador:id ANGULOAPERTURA 
+									ListaParametros:list ANGULOCIERRE PUNTOCOMA	
+				{: 
+					RESULT = new Llamada(id, list, var); 
+					RESULT.setFila(parser.alex.fila());
+				:};	
+				
+ListaParametros ::= Expresion:exp COMA ListaParametros:list
+			{: list.add(0, exp);  RESULT = list; :}
+		| Expresion:exp
+			{: RESULT = new ArrayList<Expresion>(); RESULT.add(exp); :};
+	
+While ::= MIENTRAS PARENTESISAPERTURA Expresion:exp PARENTESISCIERRE Bloque:b
+			{: RESULT = new While(exp, b); :};	
+
+IfElse ::= SI PARENTESISAPERTURA Expresion:exp PARENTESISCIERRE Bloque:bloqueIf
+			SINO Bloque:bloqueElse
+				{: RESULT = new IfElse(exp, bloqueIf, bloqueElse); :}
+			| SI PARENTESISAPERTURA Expresion:exp PARENTESISCIERRE Bloque:bloque
+				{: RESULT = new IfElse(exp, bloque); :};
+			
+DeclaracionArray ::= Tipo:tipo Identificador:id 
+							CORCHETEAPERTURA Entero:entero CORCHETECIERRE PUNTOCOMA
+			{: RESULT = new Declaracion(id, new TipoArray(tipo, entero)); :};
+		
+
+Case ::= SWITCH PARENTESISAPERTURA Variable:var PARENTESISCIERRE BLOQUEAPERTURA SecuenciaCase:casos DefaultOpt:def BLOQUECIERRE
+	{: 	RESULT = new Switch( var, casos, def); :};
+		
+
+SecuenciaCase ::= CASE Entero:ent  Bloque:bloque SecuenciaCase:casos
+	{: 
+		casos.add(0,new CaseBlock(ent,bloque));
+		RESULT = casos;
+	:};
+
+SecuenciaCase ::= CASE Entero:ent Bloque:bloque
+	{: 
+		RESULT = new ArrayList<CaseBlock>();
+		RESULT.add(new CaseBlock(ent,bloque)); 
+	:};
+	
+	
+DefaultOpt ::= DEFAULT Bloque:bloque
+	{: RESULT = new Default(bloque); :};
+		
+DefaultOpt ::= {: RESULT = null; :};	
+
+
+	
+Expresion ::= Expresion:izq OPERADOROR Expresion1:dcha 
+				{: 
+					RESULT = new Or(izq, dcha); 
+					RESULT.setFila(parser.alex.fila());:}
+			| 	Expresion:izq OPERADORAND Expresion1:dcha 
+				{: 
+					RESULT = new And(izq, dcha); 
+					RESULT.setFila(parser.alex.fila());
+				:}				
+			| Expresion1:exp
+				{: RESULT = exp; :};
+Expresion1 ::= Expresion1:izq MAYOR Expresion2:dcha 
+				{: 
+					RESULT = new Mayor(izq, dcha); 
+					RESULT.setFila(parser.alex.fila());
+				:}
+			| 	Expresion1:izq MENOR Expresion2:dcha 
+				{: 
+					RESULT = new Menor(izq, dcha); 
+					RESULT.setFila(parser.alex.fila());
+				:}
+			| 	Expresion1:izq IGUALLOGICO Expresion2:dcha 
+				{: 
+					RESULT = new Igual(izq, dcha); 
+					RESULT.setFila(parser.alex.fila());
+				:}
+			| 	Expresion1:izq DISTINTO Expresion2:dcha 
+				{: 
+					RESULT = new Distinto(izq, dcha); 
+					RESULT.setFila(parser.alex.fila());
+				:}			
+			| Expresion2:exp
+				{: RESULT = exp; :};
+							
+Expresion2 ::= Expresion2:izq OPERADORMULTIPLICACION Expresion3:dcha 
+				{: 
+					RESULT = new Multiplicacion(izq, dcha); 
+					RESULT.setFila(parser.alex.fila());
+				:}
+			| 	Expresion2:izq OPERADORDIVISION Expresion3:dcha 
+				{: 
+					RESULT = new Division(izq, dcha); 
+					RESULT.setFila(parser.alex.fila());
+				:}				
+			| Expresion3:exp
+				{: RESULT = exp; :};
+				
+Expresion3 ::= Expresion3:izq OPERADORSUMA Expresion4:dcha 
+				{: 
+					RESULT = new Suma(izq, dcha); 
+					RESULT.setFila(parser.alex.fila());
+				:}
+			| 	Expresion3:izq OPERADORRESTA Expresion4:dcha 
+				{: 
+					RESULT = new Resta(izq, dcha); 
+					RESULT.setFila(parser.alex.fila());
+				:}				
+			| Expresion4:exp
+				{: RESULT = exp; :};
+						
+Expresion4 ::= TipoPrimitivo:t {: RESULT = t; :}
+			| Array:array {:RESULT = array; :}
+			| Variable:var {: RESULT = var; :}
+			| PARENTESISAPERTURA Expresion:exp PARENTESISCIERRE
+				{: RESULT = exp; :};
+				
+			
+//Faltan el resto de tipo primitivos			
+TipoPrimitivo ::= Entero:ent {: RESULT = ent; :}
+				| Booleano:bool {: RESULT = bool; :};
+
+Array ::= Identificador:id CORCHETEAPERTURA Expresion:exp CORCHETECIERRE
+			{: RESULT = new Array(id, exp); :};
+			
+Entero ::= ENTERO:entero {: RESULT = new Entero(Integer.parseInt(entero)); :};	
+
+Booleano ::= BOOLEANO:b {: RESULT = new Booleano(Boolean.parseBoolean(b)); :};			
+
+Return ::= RETURN Expresion:exp PUNTOCOMA {: RESULT = new Return(exp); :};
+				
